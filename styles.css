@@ -1,0 +1,116 @@
+.linked-notes {
+    white-space: wrap;
+}
+
+.potential-link-note {
+    border: 1px solid #f0f0f0;
+    border-radius: 10px;
+    padding: 10px 10px 10px 10px;
+    white-space: wrap;
+    margin: 10px;
+}
+
+.potential-link-heading h3 {
+    white-space: normal;
+    word-break: break-word; /* ensures long words break */
+    overflow-wrap: break-word;
+}
+.potential-link-heading {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.potential-link {
+    border: 1px solid #dd0c0c;
+    border-radius: 10px;
+    margin: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.potential-match,
+.potential-preview {
+    padding: 5px 5px 5px 5px;
+    margin-bottom: 0.5rem;
+}
+
+.potential-link-checkbox-holder {
+    display: flex;
+    flex-direction: column;
+}
+.potential-link-checkbox-inner {
+    display: flex;
+    flex-direction: row;
+}
+.potential-link-checkbox {}
+.checkbox-pair {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    margin-left: 5px;
+}
+
+.faded-text {
+    color: #888;
+    margin-left: 5px;
+}
+
+.commit-button-div {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.scan-options-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.scan-options-button-div {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin-top: 15px;
+}
+
+.scan-options-heading-div {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+    text-align: center;
+}
+
+.scan-options-vault-button,
+.scan-options-note-button {
+    margin: 0 5px;
+}
+
+.beta-warning {
+    background: linear-gradient(135deg, #2c2727, #690909);
+    border: 1px solid #c7f816;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 12px 0;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    font-size: 0.9em;
+    color: #a33;
+    text-align: center;
+    max-width: 90%;
+    align-items: center;
+}
+.scan-options-container h1, h3, h4 {
+    margin-block-start: 0.5rem;
+    margin-block-end: 0.5rem;
+}
+.scan-options-container h4 {
+    margin-block-start: 0.1rem;
+    margin-bottom: 5px;
+}

@@ -1,0 +1,36 @@
+{
+    "name": "obsidian-link-scanner",
+    "version": "1.0.0",
+    "description": "Find potential links throughout your vault or note.",
+    "main": "dist/build/main.js",
+    "repository": {
+        "directory": ".",
+        "type": "git",
+        "url": "git+https://github.com/iLiftALot/obsidian-link-scanner.git"
+    },
+    "scripts": {
+        "dev": "node esbuild.config.mjs && terser -o dist/dev/main.js dist/dev/main.js",
+        "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production && terser -o dist/build/main.js dist/build/main.js",
+        "bump-version": "node version-bump.mjs",
+        "upload:patch": "npm version patch --no-git-tag-version && npm run bump-version && npm run build && git add . && VERSION=$(node -p \"require('./package.json').version\") && git commit -m \"Automated update for version $VERSION\" && git tag -a $VERSION -m \"Version $VERSION\" && git push origin --follow-tags",
+        "upload:minor": "npm version minor --no-git-tag-version && npm run bump-version && npm run build && git add . && VERSION=$(node -p \"require('./package.json').version\") && git commit -m \"Automated update for version $VERSION\" && git tag -a $VERSION -m \"Version $VERSION\" && git push origin --follow-tags",
+        "upload:major": "npm version major --no-git-tag-version && npm run bump-version && npm run build && git add . && VERSION=$(node -p \"require('./package.json').version\") && git commit -m \"Automated update for version $VERSION\" && git tag -a $VERSION -m \"Version $VERSION\" && git push origin --follow-tags"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "@types/node": "^18.0.0",
+        "@typescript-eslint/eslint-plugin": "8.13.0",
+        "@typescript-eslint/parser": "8.13.0",
+        "builtin-modules": "4.0.0",
+        "esbuild": "^0.25.1",
+        "obsidian": "latest",
+        "obsidian-dev-utils": "latest",
+        "obsidian-typings": "latest",
+        "terser": "5.36.0",
+        "ts-node": "10.9.2",
+        "tslib": "2.4.0",
+        "typescript": "5.6.3"
+    }
+}

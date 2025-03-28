@@ -1,0 +1,9 @@
+{
+	"id": "obsidian-link-scanner",
+	"name": "Link Scanner",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Find potential links throughout your vault or note.",
+	"author": "Obsidian",
+	"isDesktopOnly": false
+}
