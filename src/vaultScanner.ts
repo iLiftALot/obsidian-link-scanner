@@ -4,26 +4,34 @@ import LinkScannerPlugin from "./main";
 import { PotentialLinksModal } from "./linksModal";
 
 export interface PotentialLink {
-    /** The exact text matched in the note's content */
+    /** The exact text matching another note's title within the note's content */
     matchText: string;
     /** A preview of the text surrounding the match */
     textPreview: string;
-    /** The title of the note that was matched */
+    /** The title of the other note's title that was matched */
     linkedNoteTitle: string;
-    /** The aliases of the linked note */
+    /** The aliases of the other note */
     linkedNoteAliases: string[];
-    /** The editor range of the match in the note */
+    /** The editor range of the match within the note's content */
     range: EditorRange;
     /** Unique identifier for the link */
     id: string;
 }
 
 export interface NoteLinks {
+    /** The title of the note being scanned */
     noteTitle: string;
+    /** The TFile object of the note being scanned */
     noteTFile: TFile;
+    /** The list of potential links found in the note */
     potentialLinks: PotentialLink[];
 }
 
+/**
+ * A type representing a range of matched text within a note.
+ * The range is defined by two numbers: the start and end indices of the match.
+ * Prevents overlapping matches from being included in the results.
+ */
 type MatchedRange = [number, number];
 
 export class VaultScanner {
@@ -35,17 +43,41 @@ export class VaultScanner {
         this.app = app;
         this.plugin = plugin;
         this.markdownFiles = this.getMarkdownFiles();
+    }
+
+    /**
+     * Retrieves all markdown files from the vault and sorts them in descending order
+     * based on the length of their basenames.
+     *
+     * @returns {TFile[]} An array of markdown files sorted by basename length, 
+     *                    with the longest basenames appearing first.
+     */
     getMarkdownFiles(): TFile[] {
         return this.app.vault.getMarkdownFiles();
     }
 
     /**
-     * Process a single file to find potential link matches.
+     * Processes a given markdown file to identify potential links to other notes in the vault.
+     * 
+     * This function reads the content of the provided file, removes its frontmatter, and scans
+     * for matches to other note titles within the vault. It ensures that matches do not overlap
+     * and calculates the exact line and character positions of each match. The resulting matches
+     * are returned as potential links, including metadata such as the linked note's title, aliases,
+     * and a text preview of the match.
+     * 
+     * @param file - The markdown file to process.
+     * @returns A promise that resolves to a `NoteLinks` object containing the file's title, 
+     *          the file itself, and a list of potential links to other notes.
      */
-    private async processFile(file: TFile): Promise<NoteLinks> {
+    async processFile(file: TFile): Promise<NoteLinks> {
+        // All note content
         const rawContent: string = await this.app.vault.cachedRead(file);
+        // Note content without frontmatter to avoid matching links in the frontmatter
         const content: string = removeFrontmatter(rawContent);
+        // Difference between the raw content and the content without frontmatter
+        // This is used to adjust the match index to account for the removed frontmatter
         const frontmatterChars: number = rawContent.length - content.length;
+
         const noteLinks: PotentialLink[] = [];
         const matchedRanges: MatchedRange[] = [];
 
@@ -56,10 +88,11 @@ export class VaultScanner {
             // Create a regex to detect the other note's title as a whole word
             const regex: RegExp = matchNoteTitle(otherFile.basename);
             const matches: RegExpStringIterator<RegExpExecArray> = content.matchAll(regex);
+            
+            // Aliases stored in the frontmatter of the other file
             const aliases: string[] = this.app.metadataCache.getFileCache(otherFile)?.frontmatter?.aliases ?? [];
 
             for (const match of matches) {
-                let isOverlapping = false;
                 const matchIndex: number = match.index + frontmatterChars;
                 
                 for (const range of matchedRanges) {
@@ -70,7 +103,7 @@ export class VaultScanner {
                 }
                 if (isOverlapping) continue;
 
-                // Add the match to the list of ranges
+                // Add the match to the list of ranges to avoid future overlaps
                 const matchedRange: MatchedRange = [matchIndex, matchIndex + match[0].length];
                 matchedRanges.push(matchedRange);
 
@@ -110,7 +143,13 @@ export class VaultScanner {
     }
 
     /**
-     * Scans all files in the entire vault.
+     * Scans the entire vault for markdown files and processes each file to extract note links.
+     * The results are then displayed using the `displayResults` method.
+     *
+     * @returns A promise that resolves to either `void` or an array of `NoteLinks` objects
+     *          containing the processed results of the scanned files.
+     *
+     * @async
      */
     async scanVault(): Promise<void> {
         console.log('Scanning Entire Vault...');
@@ -126,16 +165,29 @@ export class VaultScanner {
     }
 
     /**
-     * Scans only the current note.
+     * Scans a single note file and processes its content to extract links or other relevant information.
+     * The results are then displayed using the `displayResults` method.
+     *
+     * @param file - The note file (`TFile`) to be scanned.
+     * @returns A promise that resolves to either `void` or an array of `NoteLinks` objects containing the extracted links.
      */
     async scanSingleNote(file: TFile): Promise<void> {
         console.log(`Scanning Single Note: ${file.basename}`);
         const result = await this.processFile(file);
+
         this.displayResults([result]);
     }
 
     /**
-     * Displays each note's potential links in a modal.
+     * Displays the results of the note link scanning process in a modal.
+     *
+     * @param results - An array of `NoteLinks` objects representing the scanned note links.
+     *                  Each object contains information about potential links found in the vault.
+     * 
+     * @remarks
+     * This method creates and opens a `PotentialLinksModal` to present the results to the user.
+     * It leverages the application's modal system to provide an interactive interface for reviewing
+     * and managing the scanned links.
      */
     private displayResults(results: NoteLinks[]): void {
         new PotentialLinksModal(this.app, results).open();

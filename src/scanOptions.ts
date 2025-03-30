@@ -12,22 +12,26 @@ export class ScanOptionsModal extends Modal {
 
     onOpen() {
         const { contentEl } = this;
-        // Div to hold the overall content, centered.
+        // Div to hold the overall content
         const containerDiv = contentEl.createDiv({ cls: "scan-options-container" });
 
-        // Create a heading container with h1 and h2
+        // Create a heading container with h1 and h3
         const headingDiv = containerDiv.createDiv({ cls: "scan-options-heading-div" });
         headingDiv.createEl("h1", { text: "🔗 Link Scanner" });
         headingDiv.createEl("h3", { text: "Choose Scan Option" });
 
-        // Create the beta warning callout AFTER the headings and ABOVE the buttons.
+        // Create the beta warning callout below the headings and above the buttons.
         const warningDiv = containerDiv.createDiv({ cls: "beta-warning" });
-        warningDiv.createEl("h4", { text: "⚠️ Beta Warning" });
+        warningDiv.createEl("h4", { text: "⚠️ WARNING" });
         warningDiv.createEl("strong", {
-            text: "Backup your vault before committing changes. Although this plugin is tested and regarded as safe, it is still in beta testing."
+            text: "Do not modify the notes while the modal is opened."
+        });
+        warningDiv.createEl("p", {
+            text: "Although this plugin has been tested and working fine thus far, it is still in beta testing. I always recommend backing up your vault before committing changes as a precaution.",
+            cls: "beta-warning-text"
         });
 
-        // Div to hold the buttons, centered.
+        // Div to hold the buttons
         const buttonDiv = containerDiv.createDiv({ cls: "scan-options-button-div" });
 
         // Button: Scan Entire Vault

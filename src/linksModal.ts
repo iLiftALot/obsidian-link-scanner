@@ -13,9 +13,11 @@ export class PotentialLinksModal extends Modal {
 
     async onOpen() {
         const { contentEl } = this;
-        contentEl.createEl('h1', {
-            text: 'Potential Links',
-            cls: 'linked-notes'
+        const headingDiv = contentEl.createDiv({
+            cls: 'potential-links-heading'
+        });
+        headingDiv.createEl('h1', {
+            text: 'Potential Links'
         });
 
         // For each note with potential matches
@@ -48,7 +50,7 @@ export class PotentialLinksModal extends Modal {
                     await this.app.workspace.openLinkText(noteTitle, noteTFile.path, "window");
                 });
 
-                // Ignore button to ignore all potential links in the note
+                // Ignore button to remove the entire note from the modal
                 const ignoreAllButton = headingDiv.createEl('button', {
                     text: 'Ignore Note ❌',
                     cls: 'ignore-all-button'
@@ -101,17 +103,15 @@ export class PotentialLinksModal extends Modal {
                         cls: 'potential-link-checkbox'
                     });
                     const mainWikilink = `[[${link.matchText}]]`;
-                    mainCheckbox.onclick = () => {
-                        if (commitButton.textContent !== 'Committed ✅') {
-                            this.uncheckOthers(mainCheckbox, checkboxHolder, commitButton);
+                    mainCheckbox.onclick = () => this.handleCheckbox(
+                        commitButton,
+                        link,
+                        mainCheckbox,
+                        checkboxHolder,
+                        mainWikilink,
+                        previewSpan
+                    );
 
-                            if (mainCheckbox.checked) {
-                                previewSpan.textContent = link.textPreview.replace(link.matchText, mainWikilink);
-                            } else {
-                                previewSpan.textContent = link.textPreview;
-                            }
-                        }
-                    };
                     mainPair.createEl('label', {
                         text: mainWikilink
                     });
@@ -126,18 +126,14 @@ export class PotentialLinksModal extends Modal {
                             cls: 'potential-link-checkbox'
                         });
                         const aliasWikilink = `[[${link.matchText}|${alias}]]`;
-                        
-                        aliasCheckbox.onclick = () => {
-                            if (commitButton.textContent !== 'Committed ✅') {
-                                this.uncheckOthers(aliasCheckbox, checkboxHolder, commitButton);
-
-                                if (aliasCheckbox.checked) {
-                                    previewSpan.textContent = link.textPreview.replace(link.matchText, aliasWikilink);
-                                } else {
-                                    previewSpan.textContent = link.textPreview;
-                                }
-                            }
-                        };
+                        aliasCheckbox.onclick = () => this.handleCheckbox(
+                            commitButton,
+                            link,
+                            aliasCheckbox,
+                            checkboxHolder,
+                            aliasWikilink,
+                            previewSpan
+                        );
                         
                         aliasPair.createEl('label', {
                             text: aliasWikilink
@@ -211,9 +207,26 @@ export class PotentialLinksModal extends Modal {
     }
 
     /**
-     * Replaces text in a multi-line string based on the provided EditorRange.
+     * Replaces a specified range of text within a given content string with a replacement string.
+     *
+     * @param content - The original content as a string.
+     * @param range - The range of text to replace, specified as an `EditorRange` object with `from` and `to` properties.
+     *                - `from` specifies the starting position with `line` and `ch` (character) indices.
+     *                - `to` specifies the ending position with `line` and `ch` (character) indices.
+     * @param replacement - The string to insert in place of the specified range.
+     * @returns The updated content string with the specified range replaced by the replacement string.
+     *
+     * @remarks
+     * - If the range spans a single line, the replacement is performed within that line.
+     * - If the range spans multiple lines, the replacement modifies the start and end lines accordingly,
+     *   and removes the lines in between.
+     * - The function assumes that the input content is a newline-separated string.
      */
-    replaceTextWithinRange(content: string, range: EditorRange, replacement: string): string {
+    replaceTextWithinRange(
+        content: string,
+        range: EditorRange,
+        replacement: string
+    ): string {
         const lines = content.split('\n');
         let { line: startLine, ch: startCh } = range.from;
         let { line: endLine, ch: endCh } = range.to;
@@ -248,18 +261,46 @@ export class PotentialLinksModal extends Modal {
     }
 
     /**
-     * Commits the change to the file by replacing the text within the provided range.
+     * Commits a change to a specified file by replacing text within a given range with a new wikilink.
+     *
+     * @param file - The target file where the change will be applied.
+     * @param range - The range within the file's content to be replaced.
+     * @param wikilink - The new wikilink text to insert within the specified range.
+     * @returns A promise that resolves when the change has been successfully committed.
      */
-    async commitChangeForFile(file: TFile, range: EditorRange, wikilink: string): Promise<void> {
+    async commitChangeForFile(
+        file: TFile,
+        range: EditorRange,
+        wikilink: string
+    ): Promise<void> {
         await this.app.vault.process(file, (content: string) => {
             return this.replaceTextWithinRange(content, range, wikilink);
         });
     }
 
-    // Helper function to uncheck all checkboxes in the group except the current one.
-    uncheckOthers(current: HTMLInputElement, checkboxHolder: HTMLDivElement, commitButton: HTMLButtonElement): void {
-        const checkboxes: NodeListOf<HTMLInputElement> = checkboxHolder.querySelectorAll('input[type="checkbox"]');
-        const noneChecked = Array.from(checkboxes).every(cb => !cb.checked);
+    /**
+     * Handles the behavior of a checkbox within the link scanning modal.
+     * Updates the preview text and ensures only one checkbox is selected at a time.
+     *
+     * @param commitButton - The button element used to commit the selected link.
+     * @param link - The potential link object containing match and preview text information.
+     * @param checkbox - The checkbox element being interacted with.
+     * @param checkboxHolder - The container element holding the checkbox.
+     * @param wikiLink - The wiki-style link to replace the matched text in the preview.
+     * @param previewSpan - The span element displaying the preview text.
+     * 
+     * @returns void
+     */
+    handleCheckbox(
+        commitButton: HTMLButtonElement,
+        link: PotentialLink,
+        checkbox: HTMLInputElement,
+        checkboxHolder: HTMLDivElement,
+        wikiLink: string,
+        previewSpan: HTMLSpanElement
+    ): void {
+        if (commitButton.textContent !== 'Committed ✅') {
+            uncheckOthers(checkbox, checkboxHolder, commitButton);
 
         if (noneChecked) {
             commitButton.disabled = true;
