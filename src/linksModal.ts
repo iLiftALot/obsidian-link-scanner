@@ -1,5 +1,6 @@
 import { App, EditorRange, Modal, TFile } from 'obsidian';
 import { NoteLinks, PotentialLink, VaultScanner } from './vaultScanner';
+import { uncheckOthers } from './utils';
 
 export class PotentialLinksModal extends Modal {
     private results: NoteLinks[];
@@ -184,16 +185,16 @@ export class PotentialLinksModal extends Modal {
                                     await this.commitChangeForFile(noteTFile, currentLinkRange, selectedWikilink);
                                     // Re-process file to update ranges and replace the old result with the newly computed one.
                                     this.results[noteResultIndex] = await this.vaultScanner.processFile(noteTFile);
-
-                            commitButton.textContent = 'Committed ✅';
-                            commitButton.disabled = true;
+                                    
+                                    commitButton.textContent = 'Committed ✅';
+                                    commitButton.disabled = true;
                                     linkDiv.style.border = '1px solid #0cdd13';
                                 }
                             }
                         }
                     };
 
-                    // Add a commit button to apply the change in the file
+                    // Remove button to ignore the specific potential link
                     const ignoreButton = buttonDiv.createEl('button', {
                         text: 'Remove ❌',
                         cls: 'ignore-button'
@@ -233,9 +234,6 @@ export class PotentialLinksModal extends Modal {
 
         const startLineText = lines[startLine];
         const endLineText = lines[endLine];
-
-        //console.log(`Start Line: ${startLine}, Start Ch: ${startCh}, Start Line Text: ${startLineText}`);
-        //console.log(`End Line: ${endLine}, End Ch: ${endCh}, End Line Text: ${endLineText}`);
 
         if (startLine === endLine) {
             // Replace text within the same line.
@@ -302,16 +300,11 @@ export class PotentialLinksModal extends Modal {
         if (commitButton.textContent !== 'Committed ✅') {
             uncheckOthers(checkbox, checkboxHolder, commitButton);
 
-        if (noneChecked) {
-            commitButton.disabled = true;
-        } else {
-            commitButton.disabled = false;
-
-            checkboxes.forEach((cb: HTMLInputElement) => {
-                if (cb !== current) {
-                    cb.checked = false;
-                }
-            });
+            if (checkbox.checked) {
+                previewSpan.textContent = link.textPreview.replace(link.matchText, wikiLink);
+            } else {
+                previewSpan.textContent = link.textPreview;
+            }
         }
     };
 

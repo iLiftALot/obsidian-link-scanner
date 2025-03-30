@@ -53,7 +53,9 @@ export class VaultScanner {
      *                    with the longest basenames appearing first.
      */
     getMarkdownFiles(): TFile[] {
-        return this.app.vault.getMarkdownFiles();
+        return this.app.vault.getMarkdownFiles().sort(
+            (a, b) => b.basename.length - a.basename.length
+        );
     }
 
     /**
@@ -95,6 +97,8 @@ export class VaultScanner {
             for (const match of matches) {
                 const matchIndex: number = match.index + frontmatterChars;
                 
+                // Check if the match overlaps with any previously found ranges
+                let isOverlapping = false;
                 for (const range of matchedRanges) {
                     if (matchIndex >= range[0] && matchIndex <= range[1]) {
                         isOverlapping = true;
@@ -120,7 +124,7 @@ export class VaultScanner {
                 
                 // Build a unique key for line range
                 const reusedId: string = makeRangeKey(editorRangeFrom, editorRangeTo);
-
+                
                 noteLinks.push({
                     id: reusedId,
                     matchText: match[0],
@@ -153,10 +157,9 @@ export class VaultScanner {
      */
     async scanVault(): Promise<void> {
         console.log('Scanning Entire Vault...');
-        const markdownFiles = this.getMarkdownFiles().sort((a, b) => b.basename.length - a.basename.length);
         const results: NoteLinks[] = [];
 
-        for (const file of markdownFiles) {
+        for (const file of this.markdownFiles) {
             const noteResult = await this.processFile(file);
             results.push(noteResult);
         }
@@ -190,6 +193,6 @@ export class VaultScanner {
      * and managing the scanned links.
      */
     private displayResults(results: NoteLinks[]): void {
-        new PotentialLinksModal(this.app, results).open();
+        new PotentialLinksModal(this.app, results, this).open();
     }
 }
