@@ -1,5 +1,5 @@
 import { App, TFile, EditorRange, EditorPosition } from "obsidian";
-import { matchNoteTitle, removeFrontmatter } from "./utils";
+import { makeRangeKey, matchNoteTitle, removeFrontmatter } from "./utils";
 import LinkScannerPlugin from "./main";
 import { PotentialLinksModal } from "./linksModal";
 
@@ -14,6 +14,8 @@ export interface PotentialLink {
     linkedNoteAliases: string[];
     /** The editor range of the match in the note */
     range: EditorRange;
+    /** Unique identifier for the link */
+    id: string;
 }
 
 export interface NoteLinks {
@@ -27,12 +29,12 @@ type MatchedRange = [number, number];
 export class VaultScanner {
     app: App;
     plugin: LinkScannerPlugin;
+    markdownFiles: TFile[];
 
     constructor(app: App, plugin: LinkScannerPlugin) {
         this.app = app;
         this.plugin = plugin;
-    }
-
+        this.markdownFiles = this.getMarkdownFiles();
     getMarkdownFiles(): TFile[] {
         return this.app.vault.getMarkdownFiles();
     }
@@ -47,10 +49,7 @@ export class VaultScanner {
         const noteLinks: PotentialLink[] = [];
         const matchedRanges: MatchedRange[] = [];
 
-        // Compare against all markdown files
-        const markdownFiles = this.getMarkdownFiles();
-
-        for (const otherFile of markdownFiles) {
+        for (const otherFile of this.markdownFiles) {
             // Skip if it's the same file (no self-matches)
             if (otherFile.path === file.path) continue;
 
@@ -85,8 +84,12 @@ export class VaultScanner {
 
                 const editorRangeFrom: EditorPosition = { line: matchLineFrom, ch: matchChFrom };
                 const editorRangeTo: EditorPosition = { line: matchLineTo, ch: matchChTo };
+                
+                // Build a unique key for line range
+                const reusedId: string = makeRangeKey(editorRangeFrom, editorRangeTo);
 
                 noteLinks.push({
+                    id: reusedId,
                     matchText: match[0],
                     textPreview: `... ${match.input.substring(
                         Math.max(0, match.index - 20),

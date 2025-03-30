@@ -1,3 +1,5 @@
+import { EditorPosition } from "obsidian";
+
 // Create a regex to match occurrences of the note title
 export function matchNoteTitle(title: string) {
     return new RegExp(
@@ -22,4 +24,8 @@ export function removeFrontmatter(content: string): string {
     }
 
     return noteContent;
+}
+
+export function makeRangeKey(from: EditorPosition, to: EditorPosition): string {
+    return `${from.line}-${from.ch}-${to.line}-${to.ch}`;
 }

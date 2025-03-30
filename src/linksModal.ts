@@ -1,11 +1,13 @@
 import { App, EditorRange, Modal, TFile } from 'obsidian';
-import { NoteLinks } from './vaultScanner';
+import { NoteLinks, PotentialLink, VaultScanner } from './vaultScanner';
 
 export class PotentialLinksModal extends Modal {
     private results: NoteLinks[];
+    private vaultScanner: VaultScanner;
 
-    constructor(app: App, results: NoteLinks[]) {
+    constructor(app: App, results: NoteLinks[], vaultScanner: VaultScanner) {
         super(app);
+        this.vaultScanner = vaultScanner;
         this.results = results;
     }
 
@@ -158,25 +160,40 @@ export class PotentialLinksModal extends Modal {
                         let selectedWikilink: string | null = null;
                         const allPairs: NodeListOf<HTMLDivElement> = checkboxHolder.querySelectorAll('.checkbox-pair');
                         
-                        allPairs.forEach(pair => {
+                        allPairs.forEach((pair: HTMLDivElement) => {
                             const checkbox = pair.querySelector('input[type="checkbox"]') as HTMLInputElement;
                             checkbox.disabled = true;
-                            linkDiv.style.border = '1px solid #0cdd13';
                             
-                            if (checkbox && checkbox.checked) {
+                            if (checkbox.checked) {
                                 const label = pair.querySelector('label') as HTMLLabelElement;
                                 
-                                selectedWikilink = label.textContent;
-                                //console.log(`LABEL: ${selectedWikilink}`);
+                                selectedWikilink = label.textContent as string;
                             }
                         });
 
-                        if (selectedWikilink) {
-                            //console.log(`Committing change for ${noteTFile.basename} with ${selectedWikilink} at ${JSON.stringify(link.range, null, 2)}`);
-                            await this.commitChangeForFile(noteTFile, link.range, selectedWikilink);
+                        if (selectedWikilink !== null) {
+                            // Access this.results to get the latest data after re-processing the file
+                            const currentLinkRange = this.results
+                                .find((result: NoteLinks) => result.noteTFile.path === noteTFile.path)?.potentialLinks
+                                .find((l) => l.id === link.id)?.range;
+                            
+                            if (currentLinkRange) {
+                                // Find the index of the current note 
+                                const noteResultIndex = this.results.findIndex(
+                                    (result: NoteLinks) => result.noteTFile.path === noteTFile.path
+                                );
+                                
+                                if (noteResultIndex !== -1) {
+                                    // Commit the change to the file
+                                    await this.commitChangeForFile(noteTFile, currentLinkRange, selectedWikilink);
+                                    // Re-process file to update ranges and replace the old result with the newly computed one.
+                                    this.results[noteResultIndex] = await this.vaultScanner.processFile(noteTFile);
 
                             commitButton.textContent = 'Committed ✅';
                             commitButton.disabled = true;
+                                    linkDiv.style.border = '1px solid #0cdd13';
+                                }
+                            }
                         }
                     };
 
