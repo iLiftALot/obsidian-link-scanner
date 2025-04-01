@@ -1,10 +1,11 @@
 import { App, EditorRange, Modal, TFile } from 'obsidian';
 import { NoteLinks, PotentialLink, VaultScanner } from './vaultScanner';
-import { uncheckOthers } from './utils';
+import { escapeRegex, uncheckOthers } from './utils';
 
 export class PotentialLinksModal extends Modal {
     private results: NoteLinks[];
     private vaultScanner: VaultScanner;
+    private selectedWikilink: string | null = null;
 
     constructor(app: App, results: NoteLinks[], vaultScanner: VaultScanner) {
         super(app);
@@ -103,7 +104,10 @@ export class PotentialLinksModal extends Modal {
                         type: 'checkbox',
                         cls: 'potential-link-checkbox'
                     });
-                    const mainWikilink = `[[${link.matchText}]]`;
+                    const mainWikilink = `[[${
+                        link.linkedNoteBasename
+                    }]]`;
+                    const mainDisplayLink = link.linkedNoteBasename;
                     mainCheckbox.onclick = () => this.handleCheckbox(
                         commitButton,
                         link,
@@ -114,7 +118,7 @@ export class PotentialLinksModal extends Modal {
                     );
 
                     mainPair.createEl('label', {
-                        text: mainWikilink
+                        text: mainDisplayLink
                     });
 
                     // Create a separate pair for each alias
@@ -126,7 +130,8 @@ export class PotentialLinksModal extends Modal {
                             type: 'checkbox',
                             cls: 'potential-link-checkbox'
                         });
-                        const aliasWikilink = `[[${link.matchText}|${alias}]]`;
+                        const aliasWikilink = `[[${link.linkedNoteBasename}|${alias}]]`;
+                        const aliasDisplayLink = alias;
                         aliasCheckbox.onclick = () => this.handleCheckbox(
                             commitButton,
                             link,
@@ -137,7 +142,7 @@ export class PotentialLinksModal extends Modal {
                         );
                         
                         aliasPair.createEl('label', {
-                            text: aliasWikilink
+                            text: aliasDisplayLink
                         });
                     }
 
@@ -153,45 +158,29 @@ export class PotentialLinksModal extends Modal {
                         }
                     });
                     commitButton.onclick = async () => {
-                        // Determine the selected wikilink from the checkbox group.
-                        let selectedWikilink: string | null = null;
-                        const allPairs: NodeListOf<HTMLDivElement> = checkboxHolder.querySelectorAll('.checkbox-pair');
+                        // Access this.results to get the latest data after re-processing the file
+                        const currentLinkRange = this.results
+                            .find((result: NoteLinks) => result.noteTFile.path === noteTFile.path)?.potentialLinks
+                            .find((l) => l.id === link.id)?.range;
                         
-                        allPairs.forEach((pair: HTMLDivElement) => {
-                            const checkbox = pair.querySelector('input[type="checkbox"]') as HTMLInputElement;
-                            checkbox.disabled = true;
+                        if (currentLinkRange && this.selectedWikilink) {
+                            // Find the index of the current note 
+                            const noteResultIndex = this.results.findIndex(
+                                (result: NoteLinks) => result.noteTFile.path === noteTFile.path
+                            );
                             
-                            if (checkbox.checked) {
-                                const label = pair.querySelector('label') as HTMLLabelElement;
+                            if (noteResultIndex !== -1) {
+                                // Commit the change to the file
+                                await this.commitChangeForFile(noteTFile, currentLinkRange);
+                                // Re-process file to update ranges and replace the old result with the newly computed one.
+                                this.results[noteResultIndex] = await this.vaultScanner.processFile(noteTFile);
                                 
-                                selectedWikilink = label.textContent as string;
-                            }
-                        });
-
-                        if (selectedWikilink !== null) {
-                            // Access this.results to get the latest data after re-processing the file
-                            const currentLinkRange = this.results
-                                .find((result: NoteLinks) => result.noteTFile.path === noteTFile.path)?.potentialLinks
-                                .find((l) => l.id === link.id)?.range;
-                            
-                            if (currentLinkRange) {
-                                // Find the index of the current note 
-                                const noteResultIndex = this.results.findIndex(
-                                    (result: NoteLinks) => result.noteTFile.path === noteTFile.path
-                                );
-                                
-                                if (noteResultIndex !== -1) {
-                                    // Commit the change to the file
-                                    await this.commitChangeForFile(noteTFile, currentLinkRange, selectedWikilink);
-                                    // Re-process file to update ranges and replace the old result with the newly computed one.
-                                    this.results[noteResultIndex] = await this.vaultScanner.processFile(noteTFile);
-                                    
-                                    commitButton.textContent = 'Committed ✅';
-                                    commitButton.disabled = true;
-                                    linkDiv.style.border = '1px solid #0cdd13';
-                                }
+                                commitButton.textContent = 'Committed ✅';
+                                commitButton.disabled = true;
+                                linkDiv.style.border = '1px solid #0cdd13';
                             }
                         }
+                        //}
                     };
 
                     // Remove button to ignore the specific potential link
@@ -225,8 +214,7 @@ export class PotentialLinksModal extends Modal {
      */
     replaceTextWithinRange(
         content: string,
-        range: EditorRange,
-        replacement: string
+        range: EditorRange
     ): string {
         const lines = content.split('\n');
         let { line: startLine, ch: startCh } = range.from;
@@ -237,7 +225,7 @@ export class PotentialLinksModal extends Modal {
 
         if (startLine === endLine) {
             // Replace text within the same line.
-            const newLine: string = startLineText.substring(0, startCh) + replacement + startLineText.substring(endCh);
+            const newLine: string = startLineText.substring(0, startCh) + this.selectedWikilink + startLineText.substring(endCh);
 
             return [
                 ...lines.slice(0, startLine),
@@ -246,7 +234,7 @@ export class PotentialLinksModal extends Modal {
             ].join('\n');
         } else {
             // Replace text across multiple lines.
-            const newStartLine = startLineText.substring(0, startCh) + replacement;
+            const newStartLine = startLineText.substring(0, startCh) + this.selectedWikilink;
             const newEndLine = endLineText.substring(endCh);
 
             return [
@@ -268,11 +256,10 @@ export class PotentialLinksModal extends Modal {
      */
     async commitChangeForFile(
         file: TFile,
-        range: EditorRange,
-        wikilink: string
+        range: EditorRange
     ): Promise<void> {
         await this.app.vault.process(file, (content: string) => {
-            return this.replaceTextWithinRange(content, range, wikilink);
+            return this.replaceTextWithinRange(content, range);
         });
     }
 
@@ -300,9 +287,29 @@ export class PotentialLinksModal extends Modal {
         if (commitButton.textContent !== 'Committed ✅') {
             uncheckOthers(checkbox, checkboxHolder, commitButton);
 
+            const previewRegex = new RegExp(
+                `(?<!\\[\\[.*?|\\[\\[.*?\\|.*?)(?<=\\s|\\b|\\*|[?.!,;:\\-/\`~=])${escapeRegex(link.linkedNoteBasename)}(?=\\s|\\b|\\*|[?.!,;:\\-/\`~=])`,
+                    'gi'
+                );
+
+            let previewRegexAlias: RegExp | null = null;
+            if (link.isAliasMatch) {
+                previewRegexAlias = new RegExp(
+                    `(?<!\\[\\[.*?|\\[\\[.*?\\|.*?)(?<=\\s|\\b|\\*|[?.!,;:\\-/\`~=])${escapeRegex(link.matchedAlias as string)}(?=\\s|\\b|\\*|[?.!,;:\\-/\`~=])(?!.*?\\]\\])`,
+                    'gi'
+                );
+            }
+
             if (checkbox.checked) {
-                previewSpan.textContent = link.textPreview.replace(link.matchText, wikiLink);
+                this.selectedWikilink = wikiLink;
+                previewSpan.textContent = link.textPreview.replace(
+                    link.textPreview.match(previewRegex)
+                        ? previewRegex
+                        : (previewRegexAlias ?? link.matchText),
+                    wikiLink
+                );
             } else {
+                this.selectedWikilink = null;
                 previewSpan.textContent = link.textPreview;
             }
         }

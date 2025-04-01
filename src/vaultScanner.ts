@@ -1,4 +1,4 @@
-import { App, TFile, EditorRange, EditorPosition } from "obsidian";
+import { App, TFile, EditorRange, EditorPosition, CachedMetadata } from "obsidian";
 import { makeRangeKey, matchNoteTitle, removeFrontmatter } from "./utils";
 import LinkScannerPlugin from "./main";
 import { PotentialLinksModal } from "./linksModal";
@@ -10,10 +10,15 @@ export interface PotentialLink {
     textPreview: string;
     /** The title of the other note's title that was matched */
     linkedNoteTitle: string;
+    linkedNoteBasename: string;
     /** The aliases of the other note */
     linkedNoteAliases: string[];
     /** The editor range of the match within the note's content */
     range: EditorRange;
+    /** The alias that matched, if applicable */
+    isAliasMatch: boolean;
+    /** The alias that matched, if applicable */
+    matchedAlias: string | null;
     /** Unique identifier for the link */
     id: string;
 }
@@ -87,55 +92,69 @@ export class VaultScanner {
             // Skip if it's the same file (no self-matches)
             if (otherFile.path === file.path) continue;
 
-            // Create a regex to detect the other note's title as a whole word
-            const regex: RegExp = matchNoteTitle(otherFile.basename);
-            const matches: RegExpStringIterator<RegExpExecArray> = content.matchAll(regex);
-            
             // Aliases stored in the frontmatter of the other file
-            const aliases: string[] = this.app.metadataCache.getFileCache(otherFile)?.frontmatter?.aliases ?? [];
+            const metadata = this.app.metadataCache.getFileCache(otherFile) as CachedMetadata;
+            const aliases: string[] = metadata.frontmatter?.aliases ?? [];
 
-            for (const match of matches) {
-                const matchIndex: number = match.index + frontmatterChars;
-                
-                // Check if the match overlaps with any previously found ranges
-                let isOverlapping = false;
-                for (const range of matchedRanges) {
-                    if (matchIndex >= range[0] && matchIndex <= range[1]) {
-                        isOverlapping = true;
-                        break;
+            // Create a combined list of terms to search for: the title plus all aliases
+            const termsToMatch = [otherFile.basename, ...aliases];
+
+            for (const term of termsToMatch) {
+                // Skip empty terms
+                if (!term || term.trim() === '') continue;
+
+                // Create a regex to detect the other note's title as a whole word
+                const regex: RegExp = matchNoteTitle(term);
+                const matches: RegExpStringIterator<RegExpExecArray> = content.matchAll(regex);
+
+                for (const match of matches) {
+                    const matchIndex: number = match.index + frontmatterChars;
+                    
+                    // Check if the match overlaps with any previously found ranges
+                    let isOverlapping = false;
+                    for (const range of matchedRanges) {
+                        if (matchIndex >= range[0] && matchIndex <= range[1]) {
+                            isOverlapping = true;
+                            break;
+                        }
                     }
+                    if (isOverlapping) continue;
+
+                    // Add the match to the list of ranges to avoid future overlaps
+                    const matchedRange: MatchedRange = [matchIndex, matchIndex + match[0].length];
+                    matchedRanges.push(matchedRange);
+
+                    // Calculate the line and character positions
+                    const lines: string[] = rawContent.substring(0, matchIndex).split('\n');
+                    const matchLineFrom: number = lines.length - 1;
+                    const matchChFrom: number = lines[lines.length - 1].length;
+                    const linesTo: string[] = rawContent.substring(0, matchIndex + match[0].length).split('\n');
+                    const matchLineTo: number = linesTo.length - 1;
+                    const matchChTo: number = linesTo[linesTo.length - 1].length;
+
+                    const editorRangeFrom: EditorPosition = { line: matchLineFrom, ch: matchChFrom };
+                    const editorRangeTo: EditorPosition = { line: matchLineTo, ch: matchChTo };
+                    
+                    // Build a unique key for line range
+                    const reusedId: string = makeRangeKey(editorRangeFrom, editorRangeTo);
+                    
+                    noteLinks.push({
+                        id: reusedId,
+                        matchText: match[0],
+                        textPreview: `... ${match.input.substring(
+                            Math.max(0, match.index - 20),
+                            Math.min(match.input.length, match.index + match[0].length + 20)
+                        )} ...`,
+                        linkedNoteTitle: otherFile.name,
+                        linkedNoteBasename: otherFile.basename,
+                        linkedNoteAliases: aliases,
+                        // Store whether this was matched via an alias
+                        isAliasMatch: term !== otherFile.basename,
+                        // Store which alias matched if it was an alias match
+                        matchedAlias: term !== otherFile.basename ? term : null,
+                        range: { from: editorRangeFrom, to: editorRangeTo }
+                    });
                 }
-                if (isOverlapping) continue;
-
-                // Add the match to the list of ranges to avoid future overlaps
-                const matchedRange: MatchedRange = [matchIndex, matchIndex + match[0].length];
-                matchedRanges.push(matchedRange);
-
-                // Calculate the line and character positions
-                const lines: string[] = rawContent.substring(0, matchIndex).split('\n');
-                const matchLineFrom: number = lines.length - 1;
-                const matchChFrom: number = lines[lines.length - 1].length;
-                const linesTo: string[] = rawContent.substring(0, matchIndex + match[0].length).split('\n');
-                const matchLineTo: number = linesTo.length - 1;
-                const matchChTo: number = linesTo[linesTo.length - 1].length;
-
-                const editorRangeFrom: EditorPosition = { line: matchLineFrom, ch: matchChFrom };
-                const editorRangeTo: EditorPosition = { line: matchLineTo, ch: matchChTo };
-                
-                // Build a unique key for line range
-                const reusedId: string = makeRangeKey(editorRangeFrom, editorRangeTo);
-                
-                noteLinks.push({
-                    id: reusedId,
-                    matchText: match[0],
-                    textPreview: `... ${match.input.substring(
-                        Math.max(0, match.index - 20),
-                        Math.min(match.input.length, match.index + match[0].length + 20)
-                    )} ...`,
-                    linkedNoteTitle: otherFile.name,
-                    linkedNoteAliases: aliases,
-                    range: { from: editorRangeFrom, to: editorRangeTo }
-                });
             }
         }
 
