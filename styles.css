@@ -123,3 +123,12 @@
     margin-block-start: 0.1rem;
     margin-bottom: 5px;
 }
+
+.no-potential-links h4 {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    font-size: 1.2rem;
+    color: #fe0606;
+}

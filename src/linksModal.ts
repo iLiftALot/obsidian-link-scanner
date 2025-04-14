@@ -161,7 +161,7 @@ export class PotentialLinksModal extends Modal {
                         // Access this.results to get the latest data after re-processing the file
                         const currentLinkRange = this.results
                             .find((result: NoteLinks) => result.noteTFile.path === noteTFile.path)?.potentialLinks
-                            .find((l) => l.id === link.id)?.range;
+                            .find((l: PotentialLink) => l.id === link.id)?.range;
                         
                         if (currentLinkRange && this.selectedWikilink) {
                             // Find the index of the current note 
@@ -192,6 +192,13 @@ export class PotentialLinksModal extends Modal {
                         linkDiv.remove();
                     }
                 }
+            } else {
+                const noMatchesDiv = contentEl.createDiv({
+                    cls: 'no-potential-links'
+                });
+                noMatchesDiv.createEl('h4', {
+                    text: 'NO POTENTIAL LINKS FOUND'
+                });
             }
         }
     }
